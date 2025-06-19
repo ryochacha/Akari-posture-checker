@@ -38,7 +38,7 @@ def main() -> None:
    # サーボトルクをONする。
    joints.enable_all_servo()
    # 初期位置に移動する。
-   joints.move_joint_positions(sync=True, pan=0, tilt=0)
+   joints.move_joint_positions(sync=True, pan=0.4, tilt=0)
 
 
 if __name__ == "__main__":
