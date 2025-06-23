@@ -1,16 +1,14 @@
-# posture_analyzer.py (公式サンプル準拠版)
+# posture_analyzer.py (MediaPipe版)
 
 import numpy as np
-
-KEYPOINT_DICT = {
-    'nose': 0, 'neck': 1, 'r_shoulder': 2, 'r_elbow': 3, 'r_wrist': 4,
-    'l_shoulder': 5, 'l_elbow': 6, 'l_wrist': 7, 'r_hip': 8, 'r_knee': 9,
-    'r_ankle': 10, 'l_hip': 11, 'l_knee': 12, 'l_ankle': 13, 'r_eye': 14,
-    'l_eye': 15, 'r_ear': 16, 'l_ear': 17
-}
+import mediapipe as mp
 
 class PostureAnalyzer:
+    """
+    Mediapipeから得られた姿勢ランドマークを分析し、角度や状態を評価するクラス。
+    """
     def __init__(self):
+        self.mp_pose = mp.solutions.pose
         self.feedback = "Initializing..."
         self.is_stooped = False
 
@@ -24,34 +22,26 @@ class PostureAnalyzer:
         if angle_deg > 180: angle_deg = 360 - angle_deg
         return angle_deg
 
-    def analyze_posture(self, pose, angle_threshold=165):
+    def analyze_posture(self, landmarks, angle_threshold=165):
         try:
-            keypoints = pose['keypoints']
+            # 必要なランドマークの座標を取得
+            def get_coord(part_enum):
+                lm = landmarks[part_enum.value]
+                return [lm.x, lm.y]
 
-            def get_coord(part_name):
-                kp = keypoints[KEYPOINT_DICT[part_name]]
-                return kp['point'] if kp['confidence'] > 0.5 else None
+            l_shoulder = get_coord(self.mp_pose.PoseLandmark.LEFT_SHOULDER)
+            r_shoulder = get_coord(self.mp_pose.PoseLandmark.RIGHT_SHOULDER)
+            l_hip = get_coord(self.mp_pose.PoseLandmark.LEFT_HIP)
+            r_hip = get_coord(self.mp_pose.PoseLandmark.RIGHT_HIP)
+            l_knee = get_coord(self.mp_pose.PoseLandmark.LEFT_KNEE)
+            r_knee = get_coord(self.mp_pose.PoseLandmark.RIGHT_KNEE)
 
-            l_shoulder = get_coord('l_shoulder')
-            r_shoulder = get_coord('r_shoulder')
-            l_hip = get_coord('l_hip')
-            r_hip = get_coord('r_hip')
-            l_knee = get_coord('l_knee')
-            r_knee = get_coord('r_knee')
-            
-            # 左右どちらかのキーポイントがあればOK
-            valid_shoulders = [p for p in [l_shoulder, r_shoulder] if p is not None]
-            valid_hips = [p for p in [l_hip, r_hip] if p is not None]
-            valid_knees = [p for p in [l_knee, r_knee] if p is not None]
+            # 肩、腰、膝の平均座標を計算
+            avg_shoulder = np.mean([l_shoulder, r_shoulder], axis=0)
+            avg_hip = np.mean([l_hip, r_hip], axis=0)
+            avg_knee = np.mean([l_knee, r_knee], axis=0)
 
-            if not (valid_shoulders and valid_hips and valid_knees):
-                raise ValueError("Required keypoints not detected.")
-
-            # 平均座標を計算
-            avg_shoulder = np.mean(valid_shoulders, axis=0)
-            avg_hip = np.mean(valid_hips, axis=0)
-            avg_knee = np.mean(valid_knees, axis=0)
-
+            # 背中の角度を計算 (肩-腰-膝の角度)
             back_angle = self._calculate_angle(avg_shoulder, avg_hip, avg_knee)
 
             if back_angle < angle_threshold:
@@ -64,5 +54,5 @@ class PostureAnalyzer:
         except Exception as e:
             self.feedback = "Analyzing..."
             self.is_stooped = False
-            
+
         return self.feedback, self.is_stooped

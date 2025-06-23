@@ -21,94 +21,54 @@ COLOR_MAP = [
     [0, 100, 255], [0, 255, 0], [255, 200, 100], [255, 0, 255], [0, 255, 0],
     [255, 200, 100], [255, 0, 255], [0, 0, 255], [255, 0, 0], [255, 0, 0],
     [255, 0, 0], [255, 0, 0]
-]
+]# pose_detector.py (MediaPipe版)
+
+import cv2
+import mediapipe as mp
 
 class PoseDetector:
-    def __init__(self):
-        self.pipeline = dai.Pipeline()
-        
-        # --- ノード定義 ---
-        # 1. カメラノード
-        cam_rgb = self.pipeline.create(dai.node.ColorCamera)
-        cam_rgb.setPreviewSize(456, 256) # モデルの入力サイズに合わせる
-        cam_rgb.setInterleaved(False)
-
-        # 2. ニューラルネットワークノード (ここが重要)
-        # 汎用のNeuralNetworkノードを使い、姿勢推定モデルを読み込む
-        nn = self.pipeline.create(dai.node.NeuralNetwork)
-        nn.setBlobPath("pose_detection.blob")
-        cam_rgb.preview.link(nn.input)
-
-        # --- 出力ノード定義 ---
-        xout_rgb = self.pipeline.create(dai.node.XLinkOut)
-        xout_rgb.setStreamName("rgb")
-        cam_rgb.preview.link(xout_rgb.input)
-
-        xout_nn = self.pipeline.create(dai.node.XLinkOut)
-        xout_nn.setStreamName("nn")
-        nn.out.link(xout_nn.input)
-
-        # --- デバイスへの接続 ---
-        try:
-            self.device = dai.Device(self.pipeline)
-            self.q_rgb = self.device.getOutputQueue("rgb", maxSize=4, blocking=False)
-            self.q_nn = self.device.getOutputQueue("nn", maxSize=4, blocking=False)
-            self.poses = []
-        except Exception as e:
-            print(f"DepthAIデバイスの初期化に失敗: {e}")
-            self.device = None
-
-    def _decode_poses(self, nn_output, frame_shape):
+    """
+    MediapipeのPoseを利用して、画像から姿勢を検出するクラス。
+    """
+    def __init__(self,
+                 min_detection_confidence=0.5,
+                 min_tracking_confidence=0.5):
         """
-        ニューラルネットワークの生出力から姿勢データをデコード(解析)する
+        クラスの初期化。Mediapipe Poseのモデルを準備する。
         """
-        h, w = frame_shape
-        heatmaps = np.array(nn_output.getLayerFp16('Mconv7_stage2_L2')).reshape((1, 19, 32, 57))
-        pafs = np.array(nn_output.getLayerFp16('Mconv7_stage2_L1')).reshape((1, 38, 32, 57))
-        heatmaps = heatmaps.astype('float32')
-        pafs = pafs.astype('float32')
+        self.mp_pose = mp.solutions.pose
+        self.pose = self.mp_pose.Pose(
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence)
+        self.mp_drawing = mp.solutions.drawing_utils
 
-        # この部分はOpenPoseの複雑な後処理のため、ここでは簡易的なキーポイント抽出に留めます
-        # 検出されたキーポイントを格納するリスト
-        detected_keypoints = []
-        for i in range(len(KEYPOINTS)):
-            heatmap = heatmaps[0, i, :, :]
-            _, conf, _, point = cv2.minMaxLoc(heatmap)
-            x = int((w / heatmap.shape[1]) * point[0])
-            y = int((h / heatmap.shape[0]) * point[1])
-            detected_keypoints.append({'point': (x, y), 'confidence': conf})
-        
-        # 1つの姿勢オブジェクトとしてラップする
-        self.poses = [{'keypoints': detected_keypoints}]
+    def find_pose(self, image, draw=True):
+        """
+        画像内の姿勢を検出し、骨格を描画する。
+        """
+        # 高速化のため、画像を書き込み不可にして参照渡しにする
+        image.flags.writeable = False
+        # Mediapipeで処理するために、BGR画像をRGBに変換
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
+        # 姿勢を検出
+        results = self.pose.process(image_rgb)
 
-    def next_frame(self):
-        if self.device is None: return None, []
-            
-        in_rgb = self.q_rgb.tryGet()
-        in_nn = self.q_nn.tryGet()
+        # 画面に描画するために、画像を書き込み可能に戻す
+        image.flags.writeable = True
+        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
 
-        frame = None
-        if in_rgb is not None:
-            frame = in_rgb.getCvFrame()
-            if in_nn is not None:
-                self._decode_poses(in_nn, frame.shape)
-        
-        return frame, self.poses
+        # 検出した骨格を描画
+        if results.pose_landmarks and draw:
+            self.mp_drawing.draw_landmarks(
+                image_bgr,
+                results.pose_landmarks,
+                self.mp_pose.POSE_CONNECTIONS)
 
-    def draw_poses(self, frame, poses):
-        if frame is None: return
-        for pose in poses:
-            points = [kp['point'] for kp in pose['keypoints']]
-            for i, (p1_idx, p2_idx) in enumerate(POSE_PAIRS):
-                if pose['keypoints'][p1_idx]['confidence'] > 0.5 and pose['keypoints'][p2_idx]['confidence'] > 0.5:
-                    p1 = points[p1_idx]
-                    p2 = points[p2_idx]
-                    cv2.line(frame, p1, p2, COLOR_MAP[i], 3)
-            for kp in pose['keypoints']:
-                 if kp['confidence'] > 0.5:
-                      cv2.circle(frame, kp['point'], 5, (0,255,0), -1)
+        return image_bgr, results
 
     def close(self):
-        if self.device is not None:
-            self.device.close()
+        """
+        リソースを解放する。
+        """
+        self.pose.close()
