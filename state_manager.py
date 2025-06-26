@@ -1,5 +1,3 @@
-# state_manager.py (新仕様版)
-
 import time
 
 class StateManager:
@@ -50,7 +48,6 @@ class StateManager:
         print("State has been reset.")
 
     def get_info(self):
-        # session_duration_minを削除
         return {
             "state": self.state,
             "bad_posture_count": self.bad_posture_count,

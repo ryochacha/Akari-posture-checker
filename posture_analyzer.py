@@ -1,11 +1,9 @@
-# posture_analyzer.py (新仕様版)
-
 import numpy as np
-import mediapipe as mp
+# mediapipe_utils からキーポイントの辞書をインポート
+from mediapipe_utils import KEYPOINT_DICT
 
 class PostureAnalyzer:
     def __init__(self):
-        self.mp_pose = mp.solutions.pose
         self.feedback = "Initializing..."
         self.is_stooped = False
 
@@ -18,22 +16,24 @@ class PostureAnalyzer:
         if angle_deg > 180: angle_deg = 360 - angle_deg
         return angle_deg
 
-    def analyze_posture(self, landmarks, angle_threshold=165):
-        # (このメソッドは変更なし)
+    def analyze_posture(self, body, angle_threshold=165):
         try:
-            def get_coord(part_enum):
-                lm = landmarks[part_enum.value]
-                return [lm.x, lm.y]
-            l_shoulder = get_coord(self.mp_pose.PoseLandmark.LEFT_SHOULDER)
-            r_shoulder = get_coord(self.mp_pose.PoseLandmark.RIGHT_SHOULDER)
-            l_hip = get_coord(self.mp_pose.PoseLandmark.LEFT_HIP)
-            r_hip = get_coord(self.mp_pose.PoseLandmark.RIGHT_HIP)
-            l_knee = get_coord(self.mp_pose.PoseLandmark.LEFT_KNEE)
-            r_knee = get_coord(self.mp_pose.PoseLandmark.RIGHT_KNEE)
+            landmarks = body.landmarks # bodyオブジェクトからランドマークを取得
+
+            def get_coord(part_name):
+                # 新しいデータ構造に合わせてキーポイントを取得
+                return landmarks[KEYPOINT_DICT[part_name]][:2]
+
+            l_shoulder, r_shoulder = get_coord('left_shoulder'), get_coord('right_shoulder')
+            l_hip, r_hip = get_coord('left_hip'), get_coord('right_hip')
+            l_knee, r_knee = get_coord('left_knee'), get_coord('right_knee')
+
             avg_shoulder = np.mean([l_shoulder, r_shoulder], axis=0)
             avg_hip = np.mean([l_hip, r_hip], axis=0)
             avg_knee = np.mean([l_knee, r_knee], axis=0)
+
             back_angle = self._calculate_angle(avg_shoulder, avg_hip, avg_knee)
+
             if back_angle < angle_threshold:
                 self.feedback = f"Stooped: {int(back_angle)} deg"
                 self.is_stooped = True
@@ -45,36 +45,25 @@ class PostureAnalyzer:
             self.is_stooped = False
         return self.feedback, self.is_stooped
 
-    def is_standing(self, landmarks, knee_angle_threshold=160):
-        """
-        膝の角度から立っているかどうかを判定する新しいメソッド
-        """
+    def is_standing(self, body, knee_angle_threshold=160):
         try:
-            def get_coord(part_enum):
-                lm = landmarks[part_enum.value]
-                # visibilityが低いキーポイントは無視
-                return [lm.x, lm.y] if lm.visibility > 0.5 else None
+            landmarks = body.landmarks
 
-            l_hip = get_coord(self.mp_pose.PoseLandmark.LEFT_HIP)
-            l_knee = get_coord(self.mp_pose.PoseLandmark.LEFT_KNEE)
-            l_ankle = get_coord(self.mp_pose.PoseLandmark.LEFT_ANKLE)
+            def get_coord(part_name):
+                # is_visibleメソッドを使って、信頼できるキーポイントか確認
+                if body.is_visible(KEYPOINT_DICT[part_name]):
+                    return landmarks[KEYPOINT_DICT[part_name]][:2]
+                return None
 
-            r_hip = get_coord(self.mp_pose.PoseLandmark.RIGHT_HIP)
-            r_knee = get_coord(self.mp_pose.PoseLandmark.RIGHT_KNEE)
-            r_ankle = get_coord(self.mp_pose.PoseLandmark.RIGHT_ANKLE)
+            l_hip, l_knee, l_ankle = get_coord('left_hip'), get_coord('left_knee'), get_coord('left_ankle')
+            r_hip, r_knee, r_ankle = get_coord('right_hip'), get_coord('right_knee'), get_coord('right_ankle')
 
-            # 左足の角度を計算
             if l_hip and l_knee and l_ankle:
-                left_knee_angle = self._calculate_angle(l_hip, l_knee, l_ankle)
-                if left_knee_angle > knee_angle_threshold:
-                    return True # 左足が伸びていれば立っていると判定
-
-            # 右足の角度を計算
+                if self._calculate_angle(l_hip, l_knee, l_ankle) > knee_angle_threshold:
+                    return True
             if r_hip and r_knee and r_ankle:
-                right_knee_angle = self._calculate_angle(r_hip, r_knee, r_ankle)
-                if right_knee_angle > knee_angle_threshold:
-                    return True # 右足が伸びていれば立っていると判定
-
+                if self._calculate_angle(r_hip, r_knee, r_ankle) > knee_angle_threshold:
+                    return True
         except Exception as e:
             return False
         return False
