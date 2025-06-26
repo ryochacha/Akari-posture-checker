@@ -7,4 +7,4 @@ MAX_SLOUCH_EVENTS: int = 3              # Number of slouches before forcing stre
 SITTING_ALERT_MINUTES: int = 60         # Minutes before sitting reminder
 
 # Path to alert sound
-BEEP_FILE: Path = Path(__file__).resolve().parent / "assets" / "alert.wav"
+BEEP_FILE: Path = Path(__file__).resolve().parent / "assets" / "alert.mp3"

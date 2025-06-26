@@ -46,7 +46,7 @@ from posture_app.interaction import play_sound, notify_stretch, notify_sitting
 
 def create_akari_client() -> AkariClient:
     """gRPC 経由で AkariClient を生成する。IP/PORT は環境に合わせて変更可"""
-    akari_ip = "192.168.100.1"   # ← 実機 IP に書き換えてください
+    akari_ip = "172.31.14.11"   # ← 実機 IP に書き換えてください
     akari_port = "51001"          # デフォルト 51001
     endpoint = f"{akari_ip}:{akari_port}"
 
