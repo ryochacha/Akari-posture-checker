@@ -39,6 +39,7 @@ def main():
         standing = False
         feedback = "No person"
 
+<<<<<<< HEAD
         if person_detected:
             # --- 2. 姿勢を分析 ---
             feedback, is_stooped = analyzer.analyze_posture(
@@ -47,6 +48,14 @@ def main():
             standing = analyzer.is_standing(
                 body, knee_angle_threshold=cfg.STANDING_KNEE_ANGLE_THRESHOLD
             )
+=======
+   # 処理を記載。下記は例
+   joints = akari.joints
+   # サーボトルクをONする。
+   joints.enable_all_servo()
+   # 初期位置に移動する。
+   joints.move_joint_positions(sync=True, pan=0, tilt=0)
+>>>>>>> parent of efd76f7 (main更新)
 
         # --- 3. 状態を更新 ---
         current_state = state_mgr.update_state(is_stooped, person_detected)
