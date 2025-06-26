@@ -1,2 +1,9 @@
 akari-client[depthai]
 akari-proto
+opencv-python
+mediapipe
+pygame
+pyttsx3
+numpy
+pygame
+pyttsx3
