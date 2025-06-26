@@ -1,44 +1,39 @@
-import cv2
-import config as cfg
-from BlazeposeDepthai import BlazeposeDepthai
-from posture_analyzer import PostureAnalyzer
-from state_manager import StateManager
-from interaction import InteractionManager
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import time
 
-def draw_info_panel(image, state_manager, analyzer_feedback):
-    info = state_manager.get_info()
-    state = info.get("state", "IDLE")
-    count = info.get("bad_posture_count", 0)
-    cv2.rectangle(image, (0, 0), (350, 110), (50, 50, 50), -1)
-    color = cfg.TEXT_COLOR_ERROR if state in ["WARNING", "PERSISTENT_WARNING"] else cfg.TEXT_COLOR_NORMAL
-    cv2.putText(image, f"STATE: {state}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-    cv2.putText(image, analyzer_feedback, (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.7, cfg.TEXT_COLOR_INFO, 2)
-    cv2.putText(image, f"COUNT: {count}", (10, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.7, cfg.TEXT_COLOR_INFO, 2)
+from akari_client import AkariClient
+from akari_client.config import (
+   AkariClientConfig,
+   JointManagerGrpcConfig,
+   M5StackGrpcConfig,
+)
 
-def main():
-    # === 初期化 ===
-    # input_srcをNoneにすると、AKARIのOAK-Dカメラを自動で使います
-    # 手元のPCのWebカメラで試す場合は input_src=0 とします
-    pose_detector = BlazeposeDepthai(input_src=0) 
-    analyzer = PostureAnalyzer()
-    state_mgr = StateManager(bad_posture_limit=cfg.BAD_POSTURE_LIMIT)
-    interaction_mgr = InteractionManager(
-        warning_sound_path=cfg.WARNING_SOUND_PATH,
-        persistent_interval=cfg.PERSISTENT_WARNING_INTERVAL_SEC
-    )
 
-    # === メインループ ===
-    while True:
-        # --- 1. Blazeposeでフレームと姿勢を検出 ---
-        # next_frame()で、描画済みのフレームとbodyオブジェクトが返ってくる
-        frame, body = pose_detector.next_frame()
-        if frame is None: break
+def main() -> None:
+   """
+   メイン関数
+   """
+   # AKARI本体のIPアドレスを指定する。
+   # 実際のAKARIのIPアドレスに合わせて変更すること。
+   akari_ip = "172.31.14.11"
+   # portは初期設定のままであれば51001固定
+   akari_port = "51001"
+   akari_endpoint = f"{akari_ip}:{akari_port}"
 
-        person_detected = body is not None
-        is_stooped = False
-        standing = False
-        feedback = "No person"
+   joint_config: JointManagerGrpcConfig = JointManagerGrpcConfig(
+      type="grpc", endpoint=akari_endpoint
+   )
+   m5_config: M5StackGrpcConfig = M5StackGrpcConfig(
+      type="grpc", endpoint=akari_endpoint
+   )
+   akari_client_config = AkariClientConfig(
+      joint_manager=joint_config, m5stack=m5_config
+   )
+   # akari_client_configを引数にしてAkariClientを作成する。
+   akari = AkariClient(akari_client_config)
 
+<<<<<<< HEAD
 <<<<<<< HEAD
         if person_detected:
             # --- 2. 姿勢を分析 ---
@@ -49,37 +44,20 @@ def main():
                 body, knee_angle_threshold=cfg.STANDING_KNEE_ANGLE_THRESHOLD
             )
 =======
+=======
+>>>>>>> parent of f6d47e2 (Merge pull request #1 from ryochacha/akari_my_branch)
    # 処理を記載。下記は例
    joints = akari.joints
    # サーボトルクをONする。
    joints.enable_all_servo()
    # 初期位置に移動する。
+<<<<<<< HEAD
    joints.move_joint_positions(sync=True, pan=0, tilt=0)
 >>>>>>> parent of efd76f7 (main更新)
+=======
+   joints.move_joint_positions(sync=True, pan=0.4, tilt=0)
+>>>>>>> parent of f6d47e2 (Merge pull request #1 from ryochacha/akari_my_branch)
 
-        # --- 3. 状態を更新 ---
-        current_state = state_mgr.update_state(is_stooped, person_detected)
-
-        # --- 4. 状態に応じたアクション ---
-        if current_state == "WARNING":
-            interaction_mgr.play_warning_sound()
-        elif current_state == "PERSISTENT_WARNING":
-            interaction_mgr.play_persistent_warning()
-            if standing:
-                interaction_mgr.say("リセットします。")
-                state_mgr.reset()
-
-        # --- 5. 画面表示 ---
-        draw_info_panel(frame, state_mgr, feedback)
-        cv2.imshow('Posture Checker - Blazepose', frame)
-
-        if cv2.waitKey(1) == ord('q'):
-            break
-
-    # === 終了処理 ===
-    pose_detector.exit()
-    cv2.destroyAllWindows()
-    print("アプリケーションを終了しました。")
 
 if __name__ == "__main__":
-    main()
+   main()
